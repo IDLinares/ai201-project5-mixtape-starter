@@ -111,3 +111,25 @@ There is no dedup step for genuinely distinct rows that happen to represent the 
 ### Fix and Side-Effect Check
 
 The fix was to add a dedup section to the `search_songs` function. I did this by creating a set and running a for loop through the results of the query from the database. For any song whose title and artist exactly match what has been added to the set already, then we skip over it and only return one unique entry for each song, even if two users shared the same song. All other tests in `test_search.py` still pass so matching songs still return as expected and nothing affecting songs tags occurred either.
+
+## Bug Fix 4
+
+### Issue Number and Title
+
+**Issue 4: I got notified when a friend added my song to a playlist but not when they rated it**
+
+## Reproducing the Bug
+
+I created a test in `test_notifications.py` called `test_rating_a_friends_song_notifies_the_sharer` that has one user share a song to a friend and that friend rates the song. Then the original sharer checks their notifications to see if they have one and it should return one but it returns 0, showing the bug exists.
+
+## Finding Root
+
+I traced the data flor from `users.py` in routes and saw the `get_notifications` function that is defined in the `notification_service`. The actual `get_notifications` function seemed fine for returning notifications so I checked up and saw the `rate_song` function and knew I was in the right spot.
+
+## Root Cause
+
+Unlike the `add_to_playlist` function that has code at the end to explicitly create a notification for the person who shared the song if someone else adds their song to a playlist, the `rate_song` function does not do this. It applies the rating score and just returns the rating so notification is made.
+
+### Fix and Side-Effect Check
+
+The fix was to call the same `create_notification` function as in the `add_to_playlist` function at the end of the `rate_song` function. If the `user_id` of the person rating it doesn't match the person who shared it, then it creates a notification for the person who shared it. I retested the `get_notification` function and made sure notifications for adding to a playlist and rating were still intact, so no regressions.

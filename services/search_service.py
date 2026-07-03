@@ -20,7 +20,8 @@ def search_songs(query: str) -> list[dict]:
 
     Returns:
         A list of song dicts. Each dict includes all song fields plus a
-        'tags' list of tag name strings.
+        'tags' list of tag name strings. If multiple users have shared the
+        same song (identical title and artist), only one entry is returned.
     """
     results = (
         db.session.query(Song)
@@ -34,7 +35,15 @@ def search_songs(query: str) -> list[dict]:
         .all()
     )
 
-    return [song.to_dict() for song in results]
+    seen = set()
+    deduped = []
+    for song in results:
+        key = (song.title.lower(), song.artist.lower())
+        if key not in seen:
+            seen.add(key)
+            deduped.append(song)
+
+    return [song.to_dict() for song in deduped]
 
 
 def get_song(song_id: str) -> dict:

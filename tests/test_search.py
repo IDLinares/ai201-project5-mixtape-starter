@@ -117,3 +117,35 @@ def test_search_returns_empty_for_no_match(app, seed_songs):
     with app.app_context():
         results = search_songs("zzz_no_match_zzz")
         assert results == []
+
+
+def test_search_no_duplicates_when_song_shared_twice(app):
+    """
+    Hypothesis: "the same song keeps showing up twice" is not an artifact of
+    the tag join (that path already dedupes correctly, per
+    test_search_no_duplicates_multi_tag_song), but of two different users
+    independently sharing the exact same title/artist. Nothing in the model
+    layer prevents two distinct Song rows with identical title and artist,
+    and search has no dedup step across rows with different IDs.
+    """
+    with app.app_context():
+        user_1 = User(username="sharer1", email="sharer1@example.com")
+        user_2 = User(username="sharer2", email="sharer2@example.com")
+        db.session.add_all([user_1, user_2])
+        db.session.flush()
+
+        song_a = Song(
+            title="Golden Hour", artist="Solange K",
+            genre="r&b", shared_by=user_1.id,
+        )
+        song_b = Song(
+            title="Golden Hour", artist="Solange K",
+            genre="r&b", shared_by=user_2.id,
+        )
+        db.session.add_all([song_a, song_b])
+        db.session.commit()
+
+        results = search_songs("Golden Hour")
+        matching = [r for r in results if r["title"] == "Golden Hour"]
+
+        assert len(matching) == 1

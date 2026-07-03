@@ -89,3 +89,25 @@ The `RECENT_THRESHOLD` variable is set to be a time delta of 24 hours, so even i
 ### Fix and Side-Effect Check
 
 The fix was to replace the `RECENT_THRESHOLD` that used a rolling 24-hour window with a fixed cutoff at the current day's midnight UTC `now.replace(hour=0, minute=0, second=0, microsecond=0`. My full test suite still passes making sure that friends who listened just before midnight are not included but just after are and no duplicate entries show up either.
+
+## Bug Fix 3
+
+### Issue Number and Title
+
+**Issue 3: The same song keeps showing up twice in search**
+
+## Reproducing the Bug
+
+I created a test in `test_search.py` called `test_search_no_duplicates_when_song_shared_twice` that performs a `search_song` after two different users share a song with the exact same title and artist and it fails. It returns 2 distinct `Song` rows.
+
+## Finding Root
+
+I traced the data flow from `songs.py` in routes and saw that the `search` function calls `search_songs` with a query. I checked the `search_songs` function in `search_serivces.py` and found where the results for search query are created and knew I was in the right spot.
+
+## Root Cause
+
+There is no dedup step for genuinely distinct rows that happen to represent the same song (both the title and artist match) and nothing in the data model prevents two users from sharing the same song.
+
+### Fix and Side-Effect Check
+
+The fix was to add a dedup section to the `search_songs` function. I did this by creating a set and running a for loop through the results of the query from the database. For any song whose title and artist exactly match what has been added to the set already, then we skip over it and only return one unique entry for each song, even if two users shared the same song. All other tests in `test_search.py` still pass so matching songs still return as expected and nothing affecting songs tags occurred either.

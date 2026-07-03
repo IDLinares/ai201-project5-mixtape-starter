@@ -124,7 +124,7 @@ I created a test in `test_notifications.py` called `test_rating_a_friends_song_n
 
 ## Finding Root
 
-I traced the data flor from `users.py` in routes and saw the `get_notifications` function that is defined in the `notification_service`. The actual `get_notifications` function seemed fine for returning notifications so I checked up and saw the `rate_song` function and knew I was in the right spot.
+I traced the data flow from `users.py` in routes and saw the `get_notifications` function that is defined in the `notification_service`. The actual `get_notifications` function seemed fine for returning notifications so I checked up and saw the `rate_song` function and knew I was in the right spot.
 
 ## Root Cause
 
@@ -133,3 +133,25 @@ Unlike the `add_to_playlist` function that has code at the end to explicitly cre
 ### Fix and Side-Effect Check
 
 The fix was to call the same `create_notification` function as in the `add_to_playlist` function at the end of the `rate_song` function. If the `user_id` of the person rating it doesn't match the person who shared it, then it creates a notification for the person who shared it. I retested the `get_notification` function and made sure notifications for adding to a playlist and rating were still intact, so no regressions.
+
+## Bug Fix 5
+
+### Issue Number and Title
+
+**Issue 5: The last song in a playlist never shows up**
+
+## Reproducing the Bug
+
+I used the test in `test_playlist.py` called `test_playlist_returns_all_songs` after seeding a playlist and the test fails because it only returns 4 songs instead of 5.
+
+## Finding Root
+
+I traced the data flow from `playlists.py` in routes and saw the `get_songs` function that calls `get_playlist_songs`. I traced that back to `playlist_service.py` and found the `get_playlist_songs` function that is supposed to return an ordered list of songs in a playlist and knew I was in the right spot.
+
+## Root Cause
+
+The `get_playlist_songs` function returns all songs in a playlist using Python's slicing syntax [start:stop]. Specifically, it omits the start and provides the stop of -1, but Python's slice is inclusive at the start and exclusive at the stop of the index, so the return will not include the last element.
+
+## Fix and Side-Effect Check
+
+The return simply just needs to be `for song in songs` to return all the songs in the playlist. The array indexing is unnecessary. Retesting all the tests in `test_playlists.py` and they pass so no regressions occurred.

@@ -46,7 +46,7 @@ All routes commit directly to service functions and are organized by what these 
 
 ---
 
-## Bug Fix #1
+## Bug Fix 1
 
 ### Issue Number and Title
 
@@ -54,7 +54,7 @@ All routes commit directly to service functions and are organized by what these 
 
 ### Reproducing the Bug
 
-I ran `pytest tests/test_Streaks.py -v` and looked at the `streak_increments_on_sunday` test which starts as treak on Saturday and tries to update it on Sunday and this test fails. The streak stays at 1 instead of updating to 2.
+I ran `pytest tests/test_Streaks.py -v` and looked at the `streak_increments_on_sunday` test which starts a streak on Saturday and tries to update it on Sunday and this test fails. The streak stays at 1 instead of updating to 2.
 
 ### Finding Root
 
@@ -67,3 +67,25 @@ The actual line that updates the streak by 1, `user.listening_streak += 1` is in
 ### Fix and Side-Effect Check
 
 The fix was to just remove that AND clause from the elif and leave it just as `elif days_since_last == 1`, since the function docstring says nothing about any different functionality or exceptions on Sunday. I checked to make sure streaks still increment on all other days and that it still gets set to 1 for a new user or a skipped day.
+
+## Bug Fix 2
+
+### Issue Number and Title
+
+**Issue 2: Friends Listening Now shows people from yesterday**
+
+### Reproducing the Bug
+
+I created a test in `test_feed.py` called `test_friends_listening_now_excludes_yesterday_calendar_day` that checks if a user's friend's last `ListeningEvent` is from the previous calendar date, then that friend should show up in this user's "Friends Listening Now." The test failed, however, and that user's friend does show up.
+
+### Finding Root
+
+I traced the data flow from `feed.py` in routes to the `get_listening_now()` function in `feed_service`. From there, I saw that a `cutoff` field for listening events is set based on the current time - a `RECENT_THRESHOLD` variable, so I knew I was in the right place.
+
+### Root Cause
+
+The `RECENT_THRESHOLD` variable is set to be a time delta of 24 hours, so even if user's friend listened at 9pm yesterday and it is 5pm today, they would still be showing up on that user's "Friends Listening Now."
+
+### Fix and Side-Effect Check
+
+The fix was to replace the `RECENT_THRESHOLD` that used a rolling 24-hour window with a fixed cutoff at the current day's midnight UTC `now.replace(hour=0, minute=0, second=0, microsecond=0`. My full test suite still passes making sure that friends who listened just before midnight are not included but just after are and no duplicate entries show up either.

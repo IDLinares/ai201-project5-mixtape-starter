@@ -63,11 +63,6 @@ def test_adding_a_friends_song_to_playlist_still_notifies(app, seed_users_and_so
     Sanity check that the existing 'added to playlist' notification path
     (the one that already works per the bug report) still works, for
     comparison against the missing rating-notification path.
-
-    Note: the song is pre-inserted into playlist_entries directly (with the
-    required position/added_by columns) so this test isolates the
-    notification behavior from the separate, already-known bug where
-    Playlist.songs.append() doesn't populate those NOT NULL columns.
     """
     with app.app_context():
         user_a_id = seed_users_and_song["user_a"].id
@@ -76,16 +71,6 @@ def test_adding_a_friends_song_to_playlist_still_notifies(app, seed_users_and_so
 
         playlist = Playlist(name="Test Playlist", created_by=user_b_id)
         db.session.add(playlist)
-        db.session.flush()
-
-        db.session.execute(
-            playlist_entries.insert().values(
-                playlist_id=playlist.id,
-                song_id=song_id,
-                position=1,
-                added_by=user_b_id,
-            )
-        )
         db.session.commit()
 
         add_to_playlist(playlist.id, song_id, user_b_id)
@@ -93,3 +78,33 @@ def test_adding_a_friends_song_to_playlist_still_notifies(app, seed_users_and_so
         notifications = get_notifications(user_a_id)
         assert len(notifications) == 1
         assert notifications[0]["type"] == "song_added_to_playlist"
+
+
+def test_add_to_playlist_populates_position_and_added_by(app, seed_users_and_song):
+    """
+    Regression test: add_to_playlist used to append via
+    Playlist.songs.append(song), which only populates playlist_id/song_id
+    on the playlist_entries row, leaving the NOT NULL position/added_by
+    columns unset and raising an IntegrityError. It should now insert a
+    proper row with both columns populated.
+    """
+    with app.app_context():
+        user_b_id = seed_users_and_song["user_b"].id
+        song_id = seed_users_and_song["song"].id
+
+        playlist = Playlist(name="Test Playlist", created_by=user_b_id)
+        db.session.add(playlist)
+        db.session.commit()
+
+        add_to_playlist(playlist.id, song_id, user_b_id)
+
+        entry = db.session.execute(
+            playlist_entries.select().where(
+                playlist_entries.c.playlist_id == playlist.id,
+                playlist_entries.c.song_id == song_id,
+            )
+        ).first()
+
+        assert entry is not None
+        assert entry.position == 1
+        assert entry.added_by == user_b_id
